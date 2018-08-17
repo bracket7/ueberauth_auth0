@@ -35,7 +35,7 @@ defmodule Ueberauth.Strategy.Auth0 do
     opts = [scope: scopes]
     opts = Keyword.put(opts, :redirect_uri, callback_url(conn))
     module = option(conn, :oauth2_module)
-    callback_url = apply(module, :authorize_url!, [opts])
+    callback_url = apply(module, :authorize_url!, [conn, opts])
     redirect!(conn, callback_url)
   end
 
@@ -47,6 +47,7 @@ defmodule Ueberauth.Strategy.Auth0 do
     module = option(conn, :oauth2_module)
     redirect_uri = callback_url(conn)
     client = apply(module, :get_token!, [
+      conn,
       [code: code, redirect_uri: redirect_uri]
     ])
     token = client.token

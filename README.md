@@ -38,11 +38,45 @@
 
   5. Update your provider configuration:
 
+  Using a static configuration:
+
   ```elixir
   config :ueberauth, Ueberauth.Strategy.Auth0.OAuth,
     domain: System.get_env("AUTH0_DOMAIN"),
     client_id: System.get_env("AUTH0_CLIENT_ID"),
     client_secret: System.get_env("AUTH0_CLIENT_SECRET")
+  ```
+
+  Without needing to recompile:
+
+  ```elixir
+  config :ueberauth, Ueberauth.Strategy.Auth0.OAuth,
+    domain: {:system, "AUTH0_DOMAIN"},
+    client_id: {:system, "AUTH0_CLIENT_ID"},
+    client_secret: {:system, "AUTH0_CLIENT_SECRET"}
+  ```
+
+  Using a computed configuration:
+
+  ```elixir
+  defmodule MyApp.ConfigFrom do
+    def get_domain(%Plug.Conn{} = conn) do
+      ...
+    end
+
+    def get_client_id(%Plug.Conn{} = conn) do
+      ...
+    end
+
+    def get_client_secret(%Plug.Conn{} = conn) do
+      ...
+    end
+  end
+  ```
+
+  ```elixir
+  config :ueberauth, Ueberauth.Strategy.Auth0.OAuth,
+    config_from: MyApp.ConfigFrom
   ```
 
   6. Include the Überauth plug in your controller:
