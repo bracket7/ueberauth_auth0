@@ -12,13 +12,33 @@ defmodule Ueberauth.Strategy.Auth0.OAuth do
         domain: {:system, "AUTH0_DOMAIN"},
         client_id: {:system, "AUTH0_CLIENT_ID"},
         client_secret: {:system, "AUTH0_CLIENT_SECRET"}
+
+  Or using a computed configuration:
+
+      defmodule MyApp.ConfigFrom do
+        def get_domain(%Plug.Conn{} = conn) do
+          ...
+        end
+
+        def get_client_id(%Plug.Conn{} = conn) do
+          ...
+        end
+
+        def get_client_secret(%Plug.Conn{} = conn) do
+          ...
+        end
+      end
+
+      config :ueberauth, Ueberauth.Strategy.Auth0.OAuth,
+        config_from: MyApp.ConfigFrom
   """
   use OAuth2.Strategy
   alias OAuth2.Client
   alias OAuth2.Strategy.AuthCode
 
-  def options do
+  def options(conn) do
     configs = Application.get_env(:ueberauth, Ueberauth.Strategy.Auth0.OAuth)
+    configs = compute_configs(conn, configs)
 
     domain = get_config_value(configs[:domain])
     client_id = get_config_value(configs[:client_id])
@@ -43,8 +63,9 @@ defmodule Ueberauth.Strategy.Auth0.OAuth do
   This will be setup automatically for you in `Ueberauth.Strategy.Auth0`.
   These options are only useful for usage outside the normal callback phase of Ueberauth.
   """
-  def client(opts \\ []) do
-    options()
+  def client(conn, opts \\ []) do
+    conn
+    |> options
     |> Keyword.merge(opts)
     |> Client.new
   end
@@ -52,19 +73,19 @@ defmodule Ueberauth.Strategy.Auth0.OAuth do
   @doc """
   Provides the authorize url for the request phase of Ueberauth. No need to call this usually.
   """
-  def authorize_url!(params \\ [], opts \\ []) do
-    opts
-    |> client
+  def authorize_url!(conn, params \\ [], opts \\ []) do
+    conn
+    |> client(opts)
     |> Client.authorize_url!(params)
   end
 
-  def get_token!(params \\ [], opts \\ []) do
-    client_secret = options()[:client_secret]
+  def get_token!(conn, params \\ [], opts \\ []) do
+    client_secret = options(conn)[:client_secret]
     params = Keyword.merge(params, client_secret: client_secret)
     headers = Keyword.get(opts, :headers, [])
     opts = Keyword.get(opts, :options, [])
     client_options = Keyword.get(opts, :client_options, [])
-    Client.get_token!(client(client_options), params, headers, opts)
+    Client.get_token!(client(conn, client_options), params, headers, opts)
   end
 
   # Strategy Callbacks
@@ -81,4 +102,25 @@ defmodule Ueberauth.Strategy.Auth0.OAuth do
 
   defp get_config_value({:system, value}), do: System.get_env(value)
   defp get_config_value(value), do: value
+
+  defp compute_configs(conn, configs) do
+    case conn do
+      %Plug.Conn{} = conn ->
+        with module when is_atom(module) <- Keyword.get(configs, :config_from),
+             true <- function_exported?(module, :get_domain, 1),
+             true <- function_exported?(module, :get_client_id, 1),
+             true <- function_exported?(module, :get_client_secret, 1)
+        do
+          configs |> Keyword.merge([
+            domain: apply(module, :get_domain, [conn]),
+            client_id: apply(module, :get_client_id, [conn]),
+            client_secret: apply(module, :get_client_secret, [conn])
+          ])
+        else
+          _ -> configs
+        end
+      _ ->
+        configs
+    end
+  end
 end
